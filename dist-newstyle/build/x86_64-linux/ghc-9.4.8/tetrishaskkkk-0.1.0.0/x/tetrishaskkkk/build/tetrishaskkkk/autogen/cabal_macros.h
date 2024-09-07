@@ -30,6 +30,26 @@
   (major1) == 4 && (major2) <  17 || \
   (major1) == 4 && (major2) == 17 && (minor) <= 2)
 #endif /* MIN_VERSION_base */
+/* package random-1.2.1.2 */
+#ifndef VERSION_random
+#define VERSION_random "1.2.1.2"
+#endif /* VERSION_random */
+#ifndef MIN_VERSION_random
+#define MIN_VERSION_random(major1,major2,minor) (\
+  (major1) <  1 || \
+  (major1) == 1 && (major2) <  2 || \
+  (major1) == 1 && (major2) == 2 && (minor) <= 1)
+#endif /* MIN_VERSION_random */
+/* package time-1.12.2 */
+#ifndef VERSION_time
+#define VERSION_time "1.12.2"
+#endif /* VERSION_time */
+#ifndef MIN_VERSION_time
+#define MIN_VERSION_time(major1,major2,minor) (\
+  (major1) <  1 || \
+  (major1) == 1 && (major2) <  12 || \
+  (major1) == 1 && (major2) == 12 && (minor) <= 2)
+#endif /* MIN_VERSION_time */
 
 /* tool gcc-14.2.1 */
 #ifndef TOOL_VERSION_gcc
