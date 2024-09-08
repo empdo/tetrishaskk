@@ -5,16 +5,15 @@
 
 module Main where
 
-import Control.Concurrent (threadDelay)
-import Data.Maybe (fromJust, isJust, isNothing)
 import Data.Time (UTCTime (utctDayTime), diffUTCTime, getCurrentTime)
 import Input
 import Shapes
 import System.Console.ANSI (clearScreen, setCursorPosition)
 import System.Random (StdGen, mkStdGen)
+import Data.Maybe (isNothing)
 
-data Block where
-  Block :: {shape :: Shape} -> Block
+newtype Block =
+  Block {blockColor :: String}
 
 type Row = [Maybe Block]
 
@@ -76,10 +75,10 @@ addBlock grid block (x, y) =
 replaceElement :: [a] -> Int -> a -> [a]
 replaceElement list index element = take index list ++ [element] ++ drop (index + 1) list
 
-placeShape :: Grid -> Shape -> [(Int, Int)] -> Grid
-placeShape grid _shape ((x, y) : rest) =
-  let _grid = addBlock grid Block {shape = _shape} (x, y)
-   in placeShape _grid _shape rest
+placeShape :: Grid -> Tetremino -> [(Int, Int)] -> Grid
+placeShape grid tetremino ((x, y) : rest) =
+  let _grid = addBlock grid Block {blockColor = color tetremino} (x, y)
+   in placeShape _grid tetremino rest
 placeShape grid _ _ = grid
 
 moveShape :: Tetremino -> Tetremino
@@ -120,6 +119,11 @@ validPos grid =
           && isNothing ((grid !! y) !! x)
     )
 
+clearLines :: Grid -> Grid
+clearLines grid =
+    let _grid = [ grid !! y | y <- [0..gridHeight-1], any isNothing (grid !! y)]
+    in replicate (gridHeight - length _grid) (replicate gridWidth Nothing) ++ _grid
+
 nextState :: GameState -> Maybe Char -> Bool -> GameState
 nextState gameState input shouldDrop =
   let -- Handle input to potentially change the Tetromino's position
@@ -131,7 +135,7 @@ nextState gameState input shouldDrop =
       -- Determine the new position if the piece should drop
       potentialDrop = moveShape (if validMove then movedTet else tetremino gameState)
       canDrop = validPos (grid gameState) (pos potentialDrop)
-      oldRng = rng gameState 
+      oldRng = rng gameState
 
       -- Update Tetromino based on dropping logic
       (newTetremino, newRng)
@@ -143,10 +147,12 @@ nextState gameState input shouldDrop =
         | otherwise = (tetremino gameState, oldRng) -- Update grid if the piece has landed
       updatedGrid =
         if shouldDrop && not canDrop
-          then placeShape (grid gameState) (name (tetremino gameState)) (pos (tetremino gameState))
+          then placeShape (grid gameState) (tetremino gameState) (pos (tetremino gameState))
           else grid gameState
+
+      clearedGrid = clearLines updatedGrid
    in gameState
-        { grid = updatedGrid,
+        { grid = clearedGrid,
           tetremino = newTetremino,
           rng = newRng
         }
@@ -163,7 +169,9 @@ printRow row = do
   putStrLn rowString
 
 printBlock :: Maybe Block -> String
-printBlock (Just Block {shape = _shape}) = shapeColor _shape ++ "██"
+printBlock (Just Block {blockColor = color})
+                                            | color == "\ESC[30m" =  color ++ "▒▒"
+                                            | otherwise =  color ++ "██"
 printBlock Nothing = "\ESC[30m" ++ "・"
 
 shouldMoveDown :: UTCTime -> UTCTime -> Bool
@@ -176,16 +184,18 @@ gameLoop gameState = do
   -- Delay and clear screen
   setCursorPosition 0 0
 
-  let grid' = grid gameState
-      tetShape = name (tetremino gameState)
+  let tetShape = name (tetremino gameState)
       tetPos = pos (tetremino gameState)
+      tetRot = rotPoint (tetremino gameState)
 
   userInput <- getUserInput
 
-  let _grid = placeShape grid' tetShape tetPos
+  let ghost = hardDropShape Tetremino {rotPoint=tetRot, pos=tetPos, name=tetShape, color="\ESC[30m"} (grid gameState) Nothing
+  let gridWithGhost = placeShape (grid gameState) ghost (pos ghost)
+  let gridWithGhostAndPlayerSuperNice = placeShape gridWithGhost (tetremino gameState) tetPos
 
   putStrLn ("╔" ++ concat (replicate (gridWidth * 2) "═") ++ "╗")
-  _ <- printGrid _grid
+  _ <- printGrid (placeShape gridWithGhostAndPlayerSuperNice ghost (pos ghost))
   putStrLn ("╚" ++ concat (replicate (gridWidth * 2) "═") ++ "╝")
 
   currentTime <- getCurrentTime

@@ -14,11 +14,6 @@ randomShape gen =
   let (index, newGen) = randomR (fromEnum (minBound :: Shape), fromEnum (maxBound :: Shape)) gen
   in (toEnum index, newGen)
 
-currentUTCTimeAsInt :: IO Int
-currentUTCTimeAsInt = do
-  posixTime <- getPOSIXTime
-  return (floor posixTime :: Int)
-
 -- Function to convert a shape to its corresponding grid (list of lists)
 shapeColor :: Shape -> String
 shapeColor J = "\ESC[34m"   -- Blue
@@ -27,7 +22,7 @@ shapeColor I = "\ESC[36m"   -- Cyan
 shapeColor S = "\ESC[32m"   -- Green
 shapeColor Z = "\ESC[31m"   -- Red
 shapeColor O = "\ESC[35m"   -- Magenta
-shapeColor T = "\ESC[37m"   -- White
+shapeColor T = "\ESC[35m"   -- Magenta
 
 shapeCoordinates :: Shape -> [(Int, Int)]
 shapeCoordinates J = [(0, 1), (1, 1), (2, 1), (2, 2)]
