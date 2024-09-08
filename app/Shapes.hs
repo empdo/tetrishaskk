@@ -1,9 +1,9 @@
-module Shapes (Shape(..), shapeCoordinates, shapeColor, Tetremino(..), randomShape) where
+module Shapes (Shape(..), shapeCoordinates, shapeColor, Tetremino(..), randomShape, shapeToRotPoint) where
 import System.Random (RandomGen, randomR, mkStdGen)
 
 import Data.Time.Clock.POSIX (getPOSIXTime)
 
-data Tetremino = Tetremino {name :: Shape, color :: String, pos :: [(Int, Int)]} deriving (Eq, Show)
+data Tetremino = Tetremino {name :: Shape, color :: String, pos :: [(Int, Int)], rotPoint :: (Int, Int)} deriving (Eq, Show)
 
 -- Define the Tetrimino shapes as a data type
 data Shape = J | L | I | S | Z | O | T
@@ -16,7 +16,7 @@ randomShape' gen =
 
 randomShape :: Shape
 randomShape =
-  let (shape,_) = randomShape' (mkStdGen 31)
+  let (shape,_) = randomShape' (mkStdGen 30)
   in shape
 
 currentUTCTimeAsInt :: IO Int
@@ -42,3 +42,13 @@ shapeCoordinates S = [(0, 1), (1, 1), (1, 0), (2, 0)]
 shapeCoordinates Z = [(0, 0), (1, 0), (1, 1), (2, 1)]
 shapeCoordinates O = [(0, 0), (0, 1), (1, 0), (1, 1)]
 shapeCoordinates T = [(0, 1), (1, 0), (1, 1), (1, 2)]
+
+
+shapeToRotPoint :: Shape -> (Int, Int)
+shapeToRotPoint J = (1, 1)
+shapeToRotPoint L = (1, 1)
+shapeToRotPoint I = (1, 2)
+shapeToRotPoint O = (0, 0)  -- O shape has no rotation, so the pivot is typically the top-left block
+shapeToRotPoint S = (1, 1)
+shapeToRotPoint T = (1, 1)
+shapeToRotPoint Z = (1, 1)
