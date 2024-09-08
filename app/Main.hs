@@ -1,172 +1,205 @@
 {-# LANGUAGE GADTs #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Evaluate" #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
 module Main where
-import Shapes
-import Input
 
 import Control.Concurrent (threadDelay)
+import Data.Maybe (fromJust, isJust, isNothing)
+import Data.Time (UTCTime (utctDayTime), diffUTCTime, getCurrentTime)
+import Input
+import Shapes
 import System.Console.ANSI (clearScreen, setCursorPosition)
-import Data.Maybe (fromJust, isNothing, isJust)
-import Data.Time (getCurrentTime, UTCTime, diffUTCTime)
+import System.Random (StdGen, mkStdGen)
 
 data Block where
   Block :: {shape :: Shape} -> Block
 
 type Row = [Maybe Block]
+
 type Grid = [Row]
+
+data GameState = GameState
+  { grid :: Grid,
+    tetremino :: Tetremino,
+    rng :: StdGen,
+    lastUpdate :: UTCTime
+  }
 
 gridWidth :: Int
 gridWidth = 12
+
 gridHeight :: Int
 gridHeight = 22
 
-handleInput :: Maybe Char -> Tetremino -> Tetremino
-handleInput (Just 'a') tetremino = moveLeft tetremino
-handleInput (Just 'd') tetremino = moveRight tetremino
-handleInput (Just 'w') tetremino = rotateTetremino tetremino
---handleInput (Just 's') (grid, tetremino) = speedUp (grid, tetremino)
-handleInput _ gameState = gameState -- No input or unhandled input, return the state unchanged
+handleInput :: Maybe Char -> (Grid, Tetremino) -> Tetremino
+handleInput (Just 'a') (_, tetremino) = moveLeft tetremino
+handleInput (Just 'd') (_, tetremino) = moveRight tetremino
+handleInput (Just 'w') (_, tetremino) = rotateTetremino tetremino
+handleInput (Just 's') (grid, tetremino) = hardDropShape tetremino grid Nothing
+handleInput _ (_, tetremino) = tetremino
 
+initialState :: IO GameState
+initialState = do
+  currentTime <- getCurrentTime
+  let seed = floor (utctDayTime currentTime) + 123456 -- Adding an offset to the seed for better variability
+  let rng = mkStdGen seed
+  let (initialTetromino, newRng) = randomTetremino rng
+  return
+    GameState
+      { grid = replicate gridHeight (replicate gridWidth Nothing),
+        tetremino = initialTetromino,
+        rng = newRng,
+        lastUpdate = currentTime
+      }
 
-initialState :: (Grid, Tetremino)
-initialState = (replicate gridHeight (replicate gridWidth Nothing), randomTetremino)
+randomTetremino :: StdGen -> (Tetremino, StdGen)
+randomTetremino rng =
+  let (shape, newRng) = randomShape rng
+      tetremino = Tetremino {pos = shapeCoordinates shape, name = shape, color = shapeColor shape, rotPoint = shapeToRotPoint shape}
+   in (tetremino, newRng)
 
--- Function to get a random Shape
-randomTetremino :: Tetremino
-randomTetremino =
-  let shape = randomShape
-      tetremino = Tetremino {pos=shapeCoordinates shape, name=shape, color=shapeColor shape, rotPoint= shapeToRotPoint shape}
-  in tetremino
+hardDropShape :: Tetremino -> Grid -> Maybe Bool -> Tetremino
+hardDropShape tetremino _ (Just False) = tetremino
+hardDropShape tetremino grid _ =
+  let newPos = moveShape tetremino
+      canMove = validPos grid (pos newPos)
+   in hardDropShape (if canMove then newPos else tetremino) grid (Just canMove)
 
 isFinalState :: Grid -> Bool
-
 addBlock :: Grid -> Block -> (Int, Int) -> Grid
 addBlock grid block (x, y) =
-    let updatedRow = replaceElement (grid !! y) x (Just block)
-    in replaceElement grid y updatedRow
+  let updatedRow = replaceElement (grid !! y) x (Just block)
+   in replaceElement grid y updatedRow
 
 replaceElement :: [a] -> Int -> a -> [a]
 replaceElement list index element = take index list ++ [element] ++ drop (index + 1) list
 
-placeShape :: Grid -> Shape -> [(Int,Int)] -> Grid
-placeShape grid _shape ((x,y):rest) =
-    let _grid = addBlock grid Block {shape = _shape} (x,y)
-    in placeShape _grid _shape rest
+placeShape :: Grid -> Shape -> [(Int, Int)] -> Grid
+placeShape grid _shape ((x, y) : rest) =
+  let _grid = addBlock grid Block {shape = _shape} (x, y)
+   in placeShape _grid _shape rest
 placeShape grid _ _ = grid
 
 moveShape :: Tetremino -> Tetremino
-moveShape tetremino = 
-    let 
-        (rx, ry) = rotPoint tetremino
-        newRotPoint = (rx, ry +1)
-        newPos = map (\(x,y) -> (x, y+1)) (pos tetremino)
-    in Tetremino {pos=newPos, name=name tetremino, color=color tetremino, rotPoint=newRotPoint}
+moveShape tetremino =
+  let (rx, ry) = rotPoint tetremino
+      newRotPoint = (rx, ry + 1)
+      newPos = map (\(x, y) -> (x, y + 1)) (pos tetremino)
+   in Tetremino {pos = newPos, name = name tetremino, color = color tetremino, rotPoint = newRotPoint}
 
 moveLeft :: Tetremino -> Tetremino
-moveLeft tetremino = 
-    let 
-        (rx, ry) = rotPoint tetremino
-        newRotPoint = (rx - 1, ry)
-        newPos = map (\(x,y) -> (x-1, y)) (pos tetremino)
-    in Tetremino {pos=newPos, name=name tetremino, color=color tetremino, rotPoint=newRotPoint}
+moveLeft tetremino =
+  let (rx, ry) = rotPoint tetremino
+      newRotPoint = (rx - 1, ry)
+      newPos = map (\(x, y) -> (x - 1, y)) (pos tetremino)
+   in Tetremino {pos = newPos, name = name tetremino, color = color tetremino, rotPoint = newRotPoint}
 
 moveRight :: Tetremino -> Tetremino
-moveRight tetremino = 
-    let 
-        (rx, ry) = rotPoint tetremino
-        newRotPoint = (rx+1, ry)
-        newPos = map (\(x,y) -> (x+1, y)) (pos tetremino)
-    in Tetremino {pos=newPos, name=name tetremino, color=color tetremino, rotPoint=newRotPoint}
+moveRight tetremino =
+  let (rx, ry) = rotPoint tetremino
+      newRotPoint = (rx + 1, ry)
+      newPos = map (\(x, y) -> (x + 1, y)) (pos tetremino)
+   in Tetremino {pos = newPos, name = name tetremino, color = color tetremino, rotPoint = newRotPoint}
 
 rotateTetremino :: Tetremino -> Tetremino
-rotateTetremino tetremino = 
-    let 
-        (rx, ry) = rotPoint tetremino
-        newRotPoint = (rx, ry)
-        newPos = map (\(x,y) -> (rx + (y-ry), ry - (x-rx))) (pos tetremino)
-    in Tetremino {pos=newPos, name=name tetremino, color=color tetremino, rotPoint=newRotPoint}
+rotateTetremino tetremino =
+  let (rx, ry) = rotPoint tetremino
+      newRotPoint = (rx, ry)
+      newPos = map (\(x, y) -> (rx + (y - ry), ry - (x - rx))) (pos tetremino)
+   in Tetremino {pos = newPos, name = name tetremino, color = color tetremino, rotPoint = newRotPoint}
 
 validPos :: Grid -> [(Int, Int)] -> Bool
-validPos grid = all (\(x, y) ->
-      x < gridWidth &&
-      y < gridHeight &&
-      x >= 0 &&
-      isNothing ((grid !! y) !! x)
-      )
+validPos grid =
+  all
+    ( \(x, y) ->
+        x < gridWidth
+          && y < gridHeight
+          && x >= 0
+          && isNothing ((grid !! y) !! x)
+    )
 
-nextState :: (Grid, Tetremino) -> Maybe Char -> Bool -> (Grid, Tetremino)
-nextState (grid, tetremino) input shouldDrop =
-    let
-        -- Handle input to potentially change the Tetromino's position
-        movedTet = handleInput input tetremino
+nextState :: GameState -> Maybe Char -> Bool -> GameState
+nextState gameState input shouldDrop =
+  let -- Handle input to potentially change the Tetromino's position
+      movedTet = handleInput input (grid gameState, tetremino gameState)
 
-        -- Check if moving is valid
-        validMove = validPos grid (pos movedTet)
+      -- Check if moving is valid
+      validMove = validPos (grid gameState) (pos movedTet)
 
-        -- Determine the new position if the piece should drop
-        potentialDrop = moveShape (if validMove then movedTet else tetremino)
-        canDrop = validPos grid (pos potentialDrop)
+      -- Determine the new position if the piece should drop
+      potentialDrop = moveShape (if validMove then movedTet else tetremino gameState)
+      canDrop = validPos (grid gameState) (pos potentialDrop)
+      oldRng = rng gameState 
 
-        -- Update Tetromino based on dropping logic
-        newTetremino
-          | shouldDrop = if canDrop then potentialDrop else randomTetremino
-          | validMove = movedTet
-          | otherwise = tetremino
-
-        -- Update grid if the piece has landed
-        updatedGrid = if shouldDrop && not canDrop
-            then placeShape grid (name tetremino) (pos tetremino)
-            else grid
-    in
-        (updatedGrid, newTetremino)
+      -- Update Tetromino based on dropping logic
+      (newTetremino, newRng)
+        | shouldDrop =
+            if canDrop
+              then (potentialDrop, oldRng)
+              else randomTetremino oldRng
+        | validMove = (movedTet, oldRng)
+        | otherwise = (tetremino gameState, oldRng) -- Update grid if the piece has landed
+      updatedGrid =
+        if shouldDrop && not canDrop
+          then placeShape (grid gameState) (name (tetremino gameState)) (pos (tetremino gameState))
+          else grid gameState
+   in gameState
+        { grid = updatedGrid,
+          tetremino = newTetremino,
+          rng = newRng
+        }
 
 isFinalState = undefined
 
 printGrid :: Grid -> IO [()]
-printGrid = mapM printRow
+printGrid =
+  mapM printRow
 
 printRow :: Row -> IO ()
 printRow row = do
-    let rowString = concatMap printBlock row
-    putStrLn rowString
+  let rowString = "║" ++ concatMap printBlock row ++ "\ESC[30m║"
+  putStrLn rowString
 
-printBlock :: Maybe Block  -> String
+printBlock :: Maybe Block -> String
 printBlock (Just Block {shape = _shape}) = shapeColor _shape ++ "██"
-printBlock Nothing =  "\ESC[30m" ++ " ·"
+printBlock Nothing = "\ESC[30m" ++ "・"
 
 shouldMoveDown :: UTCTime -> UTCTime -> Bool
 shouldMoveDown currentTime lastTime =
   let diff = diffUTCTime currentTime lastTime
-  in diff >= 1
+   in diff >= 1
 
-gameLoop :: (Grid, Tetremino) -> UTCTime -> IO [()]
-gameLoop (grid, tetremino) timeSinceDown = do
--- Delay and clear screen
+gameLoop :: GameState -> IO [()]
+gameLoop gameState = do
+  -- Delay and clear screen
   setCursorPosition 0 0
 
-  let tetShape = name tetremino
-      tetPos = pos tetremino
+  let grid' = grid gameState
+      tetShape = name (tetremino gameState)
+      tetPos = pos (tetremino gameState)
 
   userInput <- getUserInput
 
-  let _grid = placeShape grid tetShape tetPos
+  let _grid = placeShape grid' tetShape tetPos
+
+  putStrLn ("╔" ++ concat (replicate (gridWidth * 2) "═") ++ "╗")
   _ <- printGrid _grid
+  putStrLn ("╚" ++ concat (replicate (gridWidth * 2) "═") ++ "╝")
 
   currentTime <- getCurrentTime
-  let _shouldMoveDown = shouldMoveDown currentTime timeSinceDown
-  let _timeSinceDown = if _shouldMoveDown then currentTime else timeSinceDown
-
+  let _shouldMoveDown = shouldMoveDown currentTime (lastUpdate gameState)
+  let _gameState' = nextState gameState userInput _shouldMoveDown
+      _timeSinceDown = if _shouldMoveDown then currentTime else lastUpdate gameState
 
   case userInput of
-    Just 'q' -> restoreInput >> return []  -- Quit the game and restore terminal settings
-    _ -> gameLoop (nextState (grid, tetremino) userInput _shouldMoveDown) _timeSinceDown >> return []
+    Just 'q' -> restoreInput >> return [] -- Quit the game and restore terminal settings
+    _ -> gameLoop (_gameState' {lastUpdate = _timeSinceDown}) >> return []
 
 main :: IO [()]
 main = do
   clearScreen
   setupInput
 
-  startTime <- getCurrentTime
-
-  gameLoop initialState startTime
+  initialState >>= gameLoop

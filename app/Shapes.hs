@@ -9,15 +9,10 @@ data Tetremino = Tetremino {name :: Shape, color :: String, pos :: [(Int, Int)],
 data Shape = J | L | I | S | Z | O | T
   deriving (Eq, Show, Enum, Bounded)
 
-randomShape' :: RandomGen g => g -> (Shape, g)
-randomShape' gen =
+randomShape :: RandomGen g => g -> (Shape, g)
+randomShape gen =
   let (index, newGen) = randomR (fromEnum (minBound :: Shape), fromEnum (maxBound :: Shape)) gen
   in (toEnum index, newGen)
-
-randomShape :: Shape
-randomShape =
-  let (shape,_) = randomShape' (mkStdGen 30)
-  in shape
 
 currentUTCTimeAsInt :: IO Int
 currentUTCTimeAsInt = do
