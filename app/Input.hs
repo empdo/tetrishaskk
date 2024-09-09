@@ -1,8 +1,12 @@
 module Input where
-import System.IO (hSetBuffering, stdin, BufferMode(NoBuffering), hSetEcho)
+import System.IO
+    ( hSetBuffering,
+      stdin,
+      BufferMode(NoBuffering),
+      hSetEcho,
+      hReady,
+      BufferMode(LineBuffering) )
 import System.Console.ANSI (hideCursor, showCursor)
-import Control.Concurrent (threadDelay)
-import System.IO (hReady, BufferMode (LineBuffering))
 
 setupInput :: IO ()
 setupInput = do
@@ -23,4 +27,4 @@ getUserInput = do
     then Just <$> getChar
     else return Nothing
 
-  
+
