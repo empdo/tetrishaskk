@@ -22,11 +22,11 @@ shapeColor I = "\ESC[36m"   -- Cyan
 shapeColor S = "\ESC[32m"   -- Green
 shapeColor Z = "\ESC[31m"   -- Red
 shapeColor O = "\ESC[35m"   -- Magenta
-shapeColor T = "\ESC[35m"   -- Magenta
+shapeColor T = "\ESC[93m"   -- Magenta
 
 shapeCoordinates :: Shape -> [(Int, Int)]
 shapeCoordinates J = [(0, 1), (1, 1), (2, 1), (2, 2)]
-shapeCoordinates L = [(0, 0), (1, 0), (2, 0), (2, 1), (2, 2)]
+shapeCoordinates L = [(0, 0), (1, 0), (2, 0), (2, 1)]
 shapeCoordinates I = [(0, 1), (1, 1), (2, 1), (3, 1)]
 shapeCoordinates S = [(0, 1), (1, 1), (1, 0), (2, 0)]
 shapeCoordinates Z = [(0, 0), (1, 0), (1, 1), (2, 1)]
